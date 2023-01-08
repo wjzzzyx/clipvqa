@@ -1,12 +1,12 @@
 NAME: 'WXCLIPfix.WXCLIPfix.prompt.TransEncoder.QAS'
 OUTPUT_DIR: './output/clipv3/VQARAD'
-CPU_MODE: False
+# CPU_MODE: False
 SEED: 88
 
 DATASET:
   DATASET: "RAD"
   DATA_DIR: "./data/data_rad"
-  DATA_TYPE: 'jpg'
+#   DATA_TYPE: 'jpg'
 
 LOSS:
   LOSS_TYPE: 'BCELogits'
@@ -14,40 +14,40 @@ LOSS:
 TRAIN:
   BATCH_SIZE: 16
   N_EPOCH: 200
-  NUM_WORKERS: 2 
-  RESUME: False 
-  INPUT_SNAPSHOT: "" 
+#   NUM_WORKERS: 2 
+#   RESUME: False 
+#   INPUT_SNAPSHOT: "" 
   OPTIMIZER:
     TYPE: 'ADAMX'
     BASE_LR: 1e-3
     MOMENTUM_CNN: 0.05
     EPS_CNN: 1e-5
-  ACTIVATION: 'relu'
-  DROPOUT: 0.5
-  ATTENTION:
-    MODE: 'BAN'
-    GLIMPSE: 10
-    USE_COUNTER: False
-    NUM_STACKS: 2    ## For SAN
+#   ACTIVATION: 'relu'
+#   DROPOUT: 0.5
+#   ATTENTION:
+#     MODE: 'BAN'
+#     GLIMPSE: 10
+#     USE_COUNTER: False
+#     NUM_STACKS: 2    ## For SAN
   QUESTION:
-    RNN: 'GRU'
+#     RNN: 'GRU'
     LENGTH: 24
-    TFIDF: True
-    CAT: True
+#     TFIDF: True
+#     CAT: True
     HID_DIM: 768   ## Dim of joint semantic features 1024
-    CLS_HID_DIM: 512
-    PREFIX_LEN: 10
+#     CLS_HID_DIM: 512
+#     PREFIX_LEN: 10
   VISION:
     V_DIM: 2048    ## Visual input dim : 1024 + 64
     AUTOENCODER: False 
-    AE_PATH: "pretrained_ae.pth"
-    AE_ALPHA: 0.001
+#     AE_PATH: "pretrained_ae.pth"
+#     AE_ALPHA: 0.001
     MAML: False
     CLIP: True
-    CLIP_PATH: "/mnt/data2/yixiao/PubMedCLIP/pretrained/PubMedCLIP_RN50.pth"
+#     CLIP_PATH: "/mnt/data2/yixiao/PubMedCLIP/pretrained/PubMedCLIP_RN50.pth"
     CLIP_VISION_ENCODER: "RN50"
     OTHER_MODEL: False
-    PREFIX_LEN: 10
+#     PREFIX_LEN: 10
     HID_DIM: 768
   ANSWER:
     HID_DIM: 768
@@ -55,20 +55,20 @@ TRAIN:
     WIDTH: 768
     LAYERS: 12
     HEADS: 8
-  CLIP: False
-  CLIPV2: False
-  CLIPV3: True
+#   CLIP: False
+#   CLIPV2: False
+#   CLIPV3: True
   CLIP_TYPE: "weixiong"    # origin, weixiong
-  CLIP_PATH: "openai/clip-vit-base-patch32"
+#   CLIP_PATH: "openai/clip-vit-base-patch32"
   IMAGE_ENCODER_PATH: "/mnt/sde/yixiao/vlp/Encoder/ImageEncoder/ImageEncoder.bin"
   TEXT_ENCODER_PATH: "/mnt/sde/yixiao/vlp/Encoder/TextEncoder/TextEncoder.bin"
-  # TEXT_ENCODER_PATH: "microsoft/BiomedNLP-PubMedBERT-base-uncased-abstract-fulltext"
+#   # TEXT_ENCODER_PATH: "microsoft/BiomedNLP-PubMedBERT-base-uncased-abstract-fulltext"
   QAS: 'dot'    # [dot, scaled dot, cosine, scaled cosine]
 
-TRANSFORMS:
-  TRAIN_TRANSFORMS: ("random_resized_crop", "random_horizontal_flip")
-  TEST_TRANSFORMS: ("shorter_resize_for_crop", "center_crop")
-  
+# TRANSFORMS:
+#   TRAIN_TRANSFORMS: ("random_resized_crop", "random_horizontal_flip")
+#   TEST_TRANSFORMS: ("shorter_resize_for_crop", "center_crop")
+#   
 TEST:
   BATCH_SIZE: 8 
-  NUM_WORKERS: 4
+#   NUM_WORKERS: 4
