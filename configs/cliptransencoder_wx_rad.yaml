@@ -1,4 +1,4 @@
-NAME: 'WXCLIPfix.WXCLIPfix.prompt.TransEncoder.QAS'
+NAME: 'WXCLIPfix.WXCLIPfix.prompt.TransEncoder.QAS.run2'
 OUTPUT_DIR: './output/clipv3/VQARAD'
 # CPU_MODE: False
 SEED: 88
@@ -13,7 +13,7 @@ LOSS:
 
 TRAIN:
   BATCH_SIZE: 16
-  N_EPOCH: 200
+  N_EPOCH: 1000
 #   NUM_WORKERS: 2 
 #   RESUME: False 
 #   INPUT_SNAPSHOT: "" 
@@ -49,6 +49,7 @@ TRAIN:
     OTHER_MODEL: False
 #     PREFIX_LEN: 10
     HID_DIM: 768
+    POOL_DIM: 1024
   ANSWER:
     HID_DIM: 768
   MULTIMODAL:

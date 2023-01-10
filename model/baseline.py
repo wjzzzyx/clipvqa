@@ -3,6 +3,7 @@ import clip
 from collections import OrderedDict
 import torch
 import torch.nn as nn
+import torch.nn.functional as F
 from torch.nn.utils import weight_norm
 from transformers import AutoTokenizer, AutoModel
 
@@ -87,6 +88,7 @@ class ClipTransEncoder(nn.Module):
             for param in self.clip.parameters():
                 param.requires_grad_(False)
             self.visual_projection = nn.Linear(cfg.TRAIN.VISION.V_DIM, cfg.TRAIN.VISION.HID_DIM, bias=False)
+            self.visual_projection2 = nn.Linear(cfg.TRAIN.VISION.POOL_DIM, cfg.TRAIN.MULTIMODAL.WIDTH, bias=False)
             self.text_projection = nn.Parameter(torch.empty(cfg.TRAIN.QUESTION.HID_DIM, cfg.TRAIN.QUESTION.HID_DIM))
             torch.nn.init.normal_(self.text_projection, std=cfg.TRAIN.QUESTION.HID_DIM ** -0.5)
         
@@ -109,6 +111,7 @@ class ClipTransEncoder(nn.Module):
             for param in self.image_encoder.parameters():
                 param.requires_grad_(False)
             self.visual_projection = nn.Linear(cfg.TRAIN.VISION.V_DIM, cfg.TRAIN.VISION.HID_DIM, bias=False)
+            self.visual_projection2 = nn.Linear(cfg.TRAIN.VISION.POOL_DIM, cfg.TRAIN.MULTIMODAL.WIDTH, bias=False)
         
         else:
             raise NotImplementedError('Unsupported clip type.')
@@ -150,10 +153,34 @@ class ClipTransEncoder(nn.Module):
         x = x.flatten(start_dim=2).permute(0, 2, 1)    # shape (B, HW, C)
         x = torch.cat((x.mean(dim=1, keepdim=True), x), dim=1)
         x = x + self.clip.visual.attnpool.positional_embedding
-        x = self.visual_projection(x)
+
+        h = self.visual_projection(x)
         prompt = self.visual_prompt.expand(x.size(0), -1, -1)
-        x = torch.cat((prompt, x), dim=1)
-        return x
+        h = torch.cat((prompt, h), dim=1)
+
+        x = x.permute(1, 0, 2)    # shape (HW, B, C)
+        pooled, _ = F.multi_head_attention_forward(
+            query=x[:1], key=x, value=x,
+            embed_dim_to_check=x.shape[-1],
+            num_heads=self.clip.visual.attnpool.num_heads,
+            q_proj_weight=self.clip.visual.attnpool.q_proj.weight,
+            k_proj_weight=self.clip.visual.attnpool.k_proj.weight,
+            v_proj_weight=self.clip.visual.attnpool.v_proj.weight,
+            in_proj_weight=None,
+            in_proj_bias=torch.cat([self.clip.visual.attnpool.q_proj.bias, self.clip.visual.attnpool.k_proj.bias, self.clip.visual.attnpool.v_proj.bias]),
+            bias_k=None,
+            bias_v=None,
+            add_zero_attn=False,
+            dropout_p=0,
+            out_proj_weight=self.clip.visual.attnpool.c_proj.weight,
+            out_proj_bias=self.clip.visual.attnpool.c_proj.bias,
+            use_separate_proj_weight=True,
+            training=self.clip.visual.attnpool.training,
+            need_weights=False
+        )
+        pooled = pooled.squeeze(0)
+        pooled = self.visual_projection2(pooled)
+        return {'last_hidden_state': h, 'pooler_output': pooled}
 
     def get_origin_clip_text_embeddings_with_prompt(self, text, prompt, context_length):
         tokens = clip.tokenize(text, context_length=context_length, truncate=True)
@@ -182,10 +209,34 @@ class ClipTransEncoder(nn.Module):
         x = x.flatten(start_dim=2).permute(0, 2, 1)    # shape (B, HW, C)
         x = torch.cat((x.mean(dim=1, keepdim=True), x), dim=1)
         x = x + self.image_encoder.attnpool.positional_embedding
-        x = self.visual_projection(x)
+
+        h = self.visual_projection(x)
         prompt = self.visual_prompt.expand(x.size(0), -1, -1)
-        x = torch.cat((prompt, x), dim=1)
-        return x
+        h = torch.cat((prompt, h), dim=1)
+
+        x = x.permute(1, 0, 2)    # shape (HW, B, C)
+        pooled, _ = F.multi_head_attention_forward(
+            query=x[:1], key=x, value=x,
+            embed_dim_to_check=x.shape[-1],
+            num_heads=self.image_encoder.attnpool.num_heads,
+            q_proj_weight=self.image_encoder.attnpool.q_proj.weight,
+            k_proj_weight=self.image_encoder.attnpool.k_proj.weight,
+            v_proj_weight=self.image_encoder.attnpool.v_proj.weight,
+            in_proj_weight=None,
+            in_proj_bias=torch.cat([self.image_encoder.attnpool.q_proj.bias, self.image_encoder.attnpool.k_proj.bias, self.image_encoder.attnpool.v_proj.bias]),
+            bias_k=None,
+            bias_v=None,
+            add_zero_attn=False,
+            dropout_p=0,
+            out_proj_weight=self.image_encoder.attnpool.c_proj.weight,
+            out_proj_bias=self.image_encoder.attnpool.c_proj.bias,
+            use_separate_proj_weight=True,
+            training=self.image_encoder.attnpool.training,
+            need_weights=False
+        )
+        pooled = pooled.squeeze(0)
+        pooled = self.visual_projection2(pooled)
+        return {'last_hidden_state': h, 'pooler_output': pooled}
 
     def get_wx_clip_text_embeddings_with_prompt(self, text, prompt):
         encoded_input = self.tokenizer(
@@ -227,11 +278,11 @@ class ClipTransEncoder(nn.Module):
 
         # clip visual and text encoder
         if self.cfg.TRAIN.CLIP_TYPE == 'origin':
-            v_emb = self.get_origin_clip_visual_embeddings_with_prompt(v[2])
+            v_emb = self.get_origin_clip_visual_embeddings_with_prompt(v[2])['last_hidden_state']
             q_emb = self.get_origin_clip_text_embeddings_with_prompt(
                 question, self.question_prompt, self.cfg.TRAIN.QUESTION.LENGTH)['pooler_output'].unsqueeze(1)
         else:
-            v_emb = self.get_wx_clip_visual_embeddings_with_prompt(v[2])
+            v_emb = self.get_wx_clip_visual_embeddings_with_prompt(v[2])['last_hidden_state']
             q_emb = self.get_wx_clip_text_embeddings_with_prompt(
                 question, self.question_prompt)['pooler_output'].unsqueeze(1)
 
