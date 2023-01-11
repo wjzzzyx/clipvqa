@@ -118,7 +118,6 @@ class ClipTransEncoder(nn.Module):
             raise NotImplementedError('Unsupported clip type.')
 
         if cfg.TRAIN.VISION.COND_PROMPT or cfg.TRAIN.QUESTION.COND_PROMPT or cfg.TRAIN.ANSWER.COND_PROMPT:
-            import pdb; pdb.set_trace()
             self.word_embed = nn.Embedding(dataset.dictionary.ntoken + 1, 300, padding_idx=dataset.dictionary.ntoken)
             self.rnn = nn.LSTM(300, cfg.TRAIN.QUESTION.HID_DIM, batch_first=True)
             glove_embed = torch.from_numpy(np.load(os.path.join(cfg.DATASET.DATA_DIR, 'glove6b_init_300d.npy')))
@@ -285,7 +284,7 @@ class ClipTransEncoder(nn.Module):
         #     v_emb = torch.cat((clip_v_emb, ae_v_emb), 2)
 
         # if use conditional prompt
-        if self.cfg.TRAIN.VISION.COND_PROMPT or self.cfg.TRAIN.QUESTION.COND_PROMPT or self.cfg.TRAIN.ANSWER.COND_PROMPT:
+        if self.cfg.TRAIN.VISION.COND_PROMPT or self.cfg.TRAIN.QUESTION.COND_PROMPT:
             word_embedding = self.word_embed(q[0])
             _, (hn, cn) = self.rnn(word_embedding)
             cond = hn.squeeze(0).unsqueeze(1)    # shape (batch, 1, emb_dim)
@@ -297,10 +296,7 @@ class ClipTransEncoder(nn.Module):
             question_prompt = self.question_prompt + cond
         else:
             question_prompt = self.question_prompt
-        if self.cfg.TRAIN.ANSWER.COND_PROMPT:
-            answer_prompt = self.answer_prompt + cond
-        else:
-            answer_prompt = self.answer_prompt
+        answer_prompt = self.answer_prompt
 
         # clip visual and text encoder
         if self.cfg.TRAIN.CLIP_TYPE == 'origin':

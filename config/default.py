@@ -150,7 +150,6 @@ _C.TRAIN.VISION.EMBED_TYPE = ""
 # # ------ Answer ------
 _C.TRAIN.ANSWER = CN()
 _C.TRAIN.ANSWER.PREFIX_LEN = 10
-_C.TRAIN.ANSWER.COND_PROMPT = False
 _C.TRAIN.ANSWER.HID_DIM = 512
 # 
 # # ------ Multimodal ------
