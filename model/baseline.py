@@ -1,6 +1,7 @@
 import os
 import clip
 from collections import OrderedDict
+import numpy as np
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
@@ -116,14 +117,21 @@ class ClipTransEncoder(nn.Module):
         else:
             raise NotImplementedError('Unsupported clip type.')
 
+        if cfg.TRAIN.VISION.COND_PROMPT or cfg.TRAIN.QUESTION.COND_PROMPT or cfg.TRAIN.ANSWER.COND_PROMPT:
+            import pdb; pdb.set_trace()
+            self.word_embed = nn.Embedding(dataset.dictionary.ntoken + 1, 300, padding_idx=dataset.dictionary.ntoken)
+            self.rnn = nn.LSTM(300, cfg.TRAIN.QUESTION.HID_DIM, batch_first=True)
+            glove_embed = torch.from_numpy(np.load(os.path.join(cfg.DATASET.DATA_DIR, 'glove6b_init_300d.npy')))
+            self.word_embed.weight.data[:-1] = glove_embed
+        
         self.visual_prompt = nn.Parameter(torch.zeros(cfg.TRAIN.VISION.PREFIX_LEN, cfg.TRAIN.VISION.HID_DIM))
+        nn.init.normal_(self.visual_prompt, mean=0.0, std=0.01)
         self.question_prompt = nn.Parameter(torch.zeros(cfg.TRAIN.QUESTION.PREFIX_LEN, cfg.TRAIN.QUESTION.HID_DIM))
+        nn.init.normal_(self.question_prompt, mean=0.0, std=0.01)
         self.answer_prompt = nn.Parameter(torch.zeros(cfg.TRAIN.ANSWER.PREFIX_LEN, cfg.TRAIN.ANSWER.HID_DIM))
+        nn.init.normal_(self.answer_prompt, mean=0.0, std=0.01)
         self.cls_emb = nn.Parameter(torch.zeros(1, cfg.TRAIN.VISION.HID_DIM))
         self.sep_emb = nn.Parameter(torch.zeros(1, cfg.TRAIN.VISION.HID_DIM))
-        nn.init.normal_(self.visual_prompt, mean=0.0, std=0.01)
-        nn.init.normal_(self.question_prompt, mean=0.0, std=0.01)
-        nn.init.normal_(self.answer_prompt, mean=0.0, std=0.01)
         nn.init.normal_(self.cls_emb, mean=0.0, std=0.01)
         nn.init.normal_(self.sep_emb, mean=0.0, std=0.01)
 
@@ -140,7 +148,7 @@ class ClipTransEncoder(nn.Module):
         mask.triu_(1)  # zero out the lower diagonal
         return mask
     
-    def get_origin_clip_visual_embeddings_with_prompt(self, image):
+    def get_origin_clip_visual_embeddings_with_prompt(self, image, prompt):
         x = self.clip.visual.relu1(self.clip.visual.bn1(self.clip.visual.conv1(image)))
         x = self.clip.visual.relu2(self.clip.visual.bn2(self.clip.visual.conv2(x)))
         x = self.clip.visual.relu3(self.clip.visual.bn3(self.clip.visual.conv3(x)))
@@ -155,7 +163,7 @@ class ClipTransEncoder(nn.Module):
         x = x + self.clip.visual.attnpool.positional_embedding
 
         h = self.visual_projection(x)
-        prompt = self.visual_prompt.expand(x.size(0), -1, -1)
+        prompt = prompt.expand(x.size(0), -1, -1)
         h = torch.cat((prompt, h), dim=1)
 
         x = x.permute(1, 0, 2)    # shape (HW, B, C)
@@ -196,7 +204,7 @@ class ClipTransEncoder(nn.Module):
         pooler_output = x[torch.arange(x.shape[0]), tokens.argmax(dim=-1)] @ self.text_projection
         return {'last_hidden_state': x, 'pooler_output': pooler_output}
     
-    def get_wx_clip_visual_embeddings_with_prompt(self, image):
+    def get_wx_clip_visual_embeddings_with_prompt(self, image, prompt):
         x = self.image_encoder.relu1(self.image_encoder.bn1(self.image_encoder.conv1(image)))
         x = self.image_encoder.relu2(self.image_encoder.bn2(self.image_encoder.conv2(x)))
         x = self.image_encoder.relu3(self.image_encoder.bn3(self.image_encoder.conv3(x)))
@@ -211,7 +219,7 @@ class ClipTransEncoder(nn.Module):
         x = x + self.image_encoder.attnpool.positional_embedding
 
         h = self.visual_projection(x)
-        prompt = self.visual_prompt.expand(x.size(0), -1, -1)
+        prompt = prompt.expand(x.size(0), -1, -1)
         h = torch.cat((prompt, h), dim=1)
 
         x = x.permute(1, 0, 2)    # shape (HW, B, C)
@@ -276,15 +284,47 @@ class ClipTransEncoder(nn.Module):
         # if self.cfg.TRAIN.VISION.AUTOENCODER and self.cfg.TRAIN.CLIPV2:
         #     v_emb = torch.cat((clip_v_emb, ae_v_emb), 2)
 
+        # if use conditional prompt
+        if self.cfg.TRAIN.VISION.COND_PROMPT or self.cfg.TRAIN.QUESTION.COND_PROMPT or self.cfg.TRAIN.ANSWER.COND_PROMPT:
+            word_embedding = self.word_embed(q[0])
+            _, (hn, cn) = self.rnn(word_embedding)
+            cond = hn.squeeze(0).unsqueeze(1)    # shape (batch, 1, emb_dim)
+        if self.cfg.TRAIN.VISION.COND_PROMPT:
+            visual_prompt = self.visual_prompt + cond
+        else:
+            visual_prompt = self.visual_prompt
+        if self.cfg.TRAIN.QUESTION.COND_PROMPT:
+            question_prompt = self.question_prompt + cond
+        else:
+            question_prompt = self.question_prompt
+        if self.cfg.TRAIN.ANSWER.COND_PROMPT:
+            answer_prompt = self.answer_prompt + cond
+        else:
+            answer_prompt = self.answer_prompt
+
         # clip visual and text encoder
         if self.cfg.TRAIN.CLIP_TYPE == 'origin':
-            v_emb = self.get_origin_clip_visual_embeddings_with_prompt(v[2])['last_hidden_state']
-            q_emb = self.get_origin_clip_text_embeddings_with_prompt(
-                question, self.question_prompt, self.cfg.TRAIN.QUESTION.LENGTH)['pooler_output'].unsqueeze(1)
+            clip_v_output = self.get_origin_clip_visual_embeddings_with_prompt(v[2], visual_prompt)
+            clip_q_output = self.get_origin_clip_text_embeddings_with_prompt(
+                question, question_prompt, self.cfg.TRAIN.QUESTION.LENGTH)
         else:
-            v_emb = self.get_wx_clip_visual_embeddings_with_prompt(v[2])['last_hidden_state']
-            q_emb = self.get_wx_clip_text_embeddings_with_prompt(
-                question, self.question_prompt)['pooler_output'].unsqueeze(1)
+            clip_v_output = self.get_wx_clip_visual_embeddings_with_prompt(v[2], visual_prompt)
+            clip_q_output = self.get_wx_clip_text_embeddings_with_prompt(
+                question, question_prompt)
+        
+        if self.cfg.TRAIN.VISION.EMBED_TYPE == 'seq':
+            v_emb = clip_v_output['last_hidden_state']
+        elif self.cfg.TRAIN.VISION.EMBED_TYPE == 'pool':
+            v_emb = clip_v_output['pooler_output'].unsqueeze(1)
+        else:
+            raise ValueError(f'Unsupported TRAIN.VISION.EMBED_TYPE {self.cfg.TRAIN.VISION.EMBED_TYPE}')
+        
+        if self.cfg.TRAIN.QUESTION.EMBED_TYPE == 'seq':
+            q_emb = clip_q_output['last_hidden_state']
+        elif self.cfg.TRAIN.QUESTION.EMBED_TYPE == 'pool':
+            q_emb = clip_q_output['pooler_output'].unsqueeze(1)
+        else:
+            raise ValueError(f'Unsupported TRAIN.QUESTION.EMBED_TYPE {self.cfg.TRAIN.QUESTION.EMBED_TYPE}')
 
         # get open & close feature
         # separate on batch dim
@@ -302,7 +342,7 @@ class ClipTransEncoder(nn.Module):
         mm_open_emb = multimodal_open_output[:, 0]
         mm_close_emb = multimodal_close_output[:, 0]
 
-        self.open_embeds, self.close_embeds = self.embed_all_answers()
+        self.open_embeds, self.close_embeds = self.embed_all_answers(answer_prompt)
 
         return mm_close_emb, mm_open_emb, a_close, a_open
     
@@ -335,21 +375,21 @@ class ClipTransEncoder(nn.Module):
         return close_qas, open_qas
     
 
-    def embed_all_answers(self):
+    def embed_all_answers(self, prompt):
         answers = [k for k, v in sorted(self.dataset.ans2label.items(), key=lambda item: item[1])]
         open_answers = self.dataset.label2open
         close_answers = self.dataset.label2close
         if self.cfg.TRAIN.CLIP_TYPE == 'origin':
             # self.answer_embeds = self.get_origin_clip_embeddings_with_prompt(answers)['pooler_output']
             open_embeds = self.get_origin_clip_text_embeddings_with_prompt(
-                open_answers, self.answer_prompt, self.cfg.TRAIN.QUESTION.LENGTH)['pooler_output']
+                open_answers, prompt, self.cfg.TRAIN.QUESTION.LENGTH)['pooler_output']
             close_embeds = self.get_origin_clip_text_embeddings_with_prompt(
-                close_answers, self.answer_prompt, self.cfg.TRAIN.QUESTION.LENGTH)['pooler_output']
+                close_answers, prompt, self.cfg.TRAIN.QUESTION.LENGTH)['pooler_output']
         else:
             # self.answer_embeds = self.get_wx_clip_embeddings_with_prompt(answers)['pooler_output']
             open_embeds = self.get_wx_clip_text_embeddings_with_prompt(
-                open_answers, self.answer_prompt)['pooler_output']
+                open_answers, prompt)['pooler_output']
             close_embeds = self.get_wx_clip_text_embeddings_with_prompt(
-                close_answers, self.answer_prompt)['pooler_output']
+                close_answers, prompt)['pooler_output']
         return open_embeds, close_embeds
         
