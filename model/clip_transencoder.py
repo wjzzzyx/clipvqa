@@ -29,8 +29,8 @@ def seperate(v, q, a, answer_target, n_unique_close):
 class ResidualAttentionBlock(nn.Module):
     def __init__(self, d_model: int, n_head: int, attn_mask: torch.Tensor = None):
         super().__init__()
-
-        self.attn = nn.MultiheadAttention(d_model, n_head)
+        
+        self.attn = nn.MultiheadAttention(d_model, n_head, batch_first=True)
         self.ln_1 = nn.LayerNorm(d_model)
         self.mlp = nn.Sequential(OrderedDict([
             ("c_fc", nn.Linear(d_model, d_model * 4)),
@@ -117,7 +117,7 @@ class ClipTransEncoder(nn.Module):
         else:
             raise NotImplementedError('Unsupported clip type.')
 
-        if cfg.TRAIN.VISION.COND_PROMPT or cfg.TRAIN.QUESTION.COND_PROMPT or cfg.TRAIN.ANSWER.COND_PROMPT:
+        if cfg.TRAIN.VISION.COND_PROMPT or cfg.TRAIN.QUESTION.COND_PROMPT:
             self.word_embed = nn.Embedding(dataset.dictionary.ntoken + 1, 300, padding_idx=dataset.dictionary.ntoken)
             self.rnn = nn.LSTM(300, cfg.TRAIN.QUESTION.HID_DIM, batch_first=True)
             glove_embed = torch.from_numpy(np.load(os.path.join(cfg.DATASET.DATA_DIR, 'glove6b_init_300d.npy')))
