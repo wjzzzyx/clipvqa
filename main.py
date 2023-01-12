@@ -13,7 +13,7 @@ from torch.utils.data import DataLoader
 from config import cfg, update_config
 from dataset import dataset_RAD, dataset_SLAKE
 from language.classify_question import classify_model
-from model import ClipTransEncoder
+from model import ClipTransEncoder, ClipBAN
 from utils.create_dictionary import Dictionary
 from train import train
 from test import test
@@ -63,12 +63,9 @@ if __name__ == '__main__':
         val_dataset = dataset_SLAKE.VQASLAKEFeatureDataset('test', cfg,d,dataroot=data_dir)
     else:
         raise ValueError(f"Dataset {cfg.DATASET.DATASET} is not supported!")
-    drop_last = False
-    drop_last_val = False
-    train_loader = DataLoader(train_dataset, cfg.TRAIN.BATCH_SIZE, shuffle=True, num_workers=0,drop_last=drop_last,
-            pin_memory=True)
-    val_loader = DataLoader(val_dataset, cfg.TEST.BATCH_SIZE, shuffle=False, num_workers=0,drop_last=drop_last_val,
-            pin_memory=True)
+    
+    train_loader = DataLoader(train_dataset, cfg.TRAIN.BATCH_SIZE, shuffle=True, num_workers=0, drop_last=False, pin_memory=True)
+    val_loader = DataLoader(val_dataset, cfg.TEST.BATCH_SIZE, shuffle=False, num_workers=0, drop_last=False,pin_memory=True)
 
     # load the model
     glove_weights_path = os.path.join(data_dir, "glove6b_init_300d.npy")
@@ -85,10 +82,16 @@ if __name__ == '__main__':
     # training phase
     # create VQA model and question classify model
     if args.test:
-        model = ClipTransEncoder(val_dataset, cfg)
+        if cfg.MODEL == 'cliptransencoder':
+            model = ClipTransEncoder(val_dataset, cfg)
+        elif cfg.MODEL == 'clipban':
+            model = ClipBAN(val_dataset, cfg)
         model_data = torch.load(cfg.TEST.MODEL_FILE)
         model.load_state_dict(model_data.get('model_state', model_data), strict=False)
         test(cfg, model, question_classify, val_loader, train_dataset.num_close_candidates, args.device)
     else:
-        model = ClipTransEncoder(train_dataset, cfg)
+        if cfg.MODEL == 'cliptransencoder':
+            model = ClipTransEncoder(train_dataset, cfg)
+        elif cfg.MODEL == 'clipban':
+            model = ClipBAN(train_dataset, cfg)
         train(cfg, model, question_classify, train_loader, val_loader, train_dataset.num_close_candidates, args.device)
