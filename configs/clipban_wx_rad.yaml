@@ -1,9 +1,9 @@
-NAME: 'WXCLIPfix_pool.WXCLIPfix_seq.prompt10.TransEncoder_2l.QAS.fixbatchfirst'
-OUTPUT_DIR: './output/clipv3/VQARAD'
+NAME: 'WXCLIPfix_seq.WXCLIPfix_seq.prompt10.BAN.QAS'
+OUTPUT_DIR: './output/clipban/VQARAD'
 # CPU_MODE: False
 SEED: 88
 
-MODEL: "cliptransencoder"
+MODEL: "clipban"
 
 DATASET:
   DATASET: "RAD"
@@ -26,9 +26,9 @@ TRAIN:
     EPS_CNN: 1e-5
 #   ACTIVATION: 'relu'
 #   DROPOUT: 0.5
-#   ATTENTION:
+  ATTENTION:
 #     MODE: 'BAN'
-#     GLIMPSE: 10
+    GLIMPSE: 10
 #     USE_COUNTER: False
 #     NUM_STACKS: 2    ## For SAN
   QUESTION:
@@ -42,7 +42,7 @@ TRAIN:
     COND_PROMPT: False
     EMBED_TYPE: "seq"
   VISION:
-    V_DIM: 2048    ## Visual input dim : 1024 + 64
+    V_DIM: 2048
     AUTOENCODER: False 
 #     AE_PATH: "pretrained_ae.pth"
 #     AE_ALPHA: 0.001
@@ -59,13 +59,7 @@ TRAIN:
   ANSWER:
     PREFIX_LEN: 10
     HID_DIM: 768
-  MULTIMODAL:
-    WIDTH: 768
-    LAYERS: 2
-    HEADS: 8
-#   CLIP: False
-#   CLIPV2: False
-#   CLIPV3: True
+
   CLIP_TYPE: "weixiong"    # origin, weixiong
 #   CLIP_PATH: "openai/clip-vit-base-patch32"
   IMAGE_ENCODER_PATH: "/mnt/sde/yixiao/vlp/Encoder/ImageEncoder/ImageEncoder.bin"
