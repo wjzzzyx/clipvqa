@@ -13,7 +13,7 @@ from torch.utils.data import DataLoader
 from config import cfg, update_config
 from dataset import dataset_RAD, dataset_SLAKE
 from language.classify_question import classify_model
-from model import ClipTransEncoder, ClipBAN
+from model import ClipTransEncoder, ClipBAN, ClipTransEncoderV2
 from utils.create_dictionary import Dictionary
 from train import train
 from test import test
@@ -84,6 +84,8 @@ if __name__ == '__main__':
     if args.test:
         if cfg.MODEL == 'cliptransencoder':
             model = ClipTransEncoder(val_dataset, cfg)
+        elif cfg.MODEL == 'cliptransencoderv2':
+            model = ClipTransEncoderV2(val_dataset, cfg)
         elif cfg.MODEL == 'clipban':
             model = ClipBAN(val_dataset, cfg)
         model_data = torch.load(cfg.TEST.MODEL_FILE)
@@ -92,6 +94,8 @@ if __name__ == '__main__':
     else:
         if cfg.MODEL == 'cliptransencoder':
             model = ClipTransEncoder(train_dataset, cfg)
+        elif cfg.MODEL == 'cliptransencoderv2':
+            model = ClipTransEncoderV2(train_dataset, cfg)
         elif cfg.MODEL == 'clipban':
             model = ClipBAN(train_dataset, cfg)
         train(cfg, model, question_classify, train_loader, val_loader, train_dataset.num_close_candidates, args.device)
