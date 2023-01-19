@@ -1,4 +1,4 @@
-NAME: 'WXCLIPfix_pool.WXCLIPfix_seq.prompt10.TransEncoder_2l.QAS.fixbatchfirst'
+NAME: 'WXCLIPfix_seq.WXCLIPfix_seq.prompt10.TransEncoder_12l.QAS.fixbatchfirst'
 OUTPUT_DIR: './output/clipv3/VQARAD'
 # CPU_MODE: False
 SEED: 88
@@ -55,13 +55,13 @@ TRAIN:
     COND_PROMPT: False
     HID_DIM: 768
     POOL_DIM: 1024
-    EMBED_TYPE: "pool"
+    EMBED_TYPE: "seq"
   ANSWER:
     PREFIX_LEN: 10
     HID_DIM: 768
   MULTIMODAL:
     WIDTH: 768
-    LAYERS: 2
+    LAYERS: 12
     HEADS: 8
 #   CLIP: False
 #   CLIPV2: False
